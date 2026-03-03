@@ -23,11 +23,10 @@ class AntColonyOptimizer:
         self.goal = goal
         self.num_ants = num_ants
         self.iterations = iterations
-        self.evaporation = max(0, min(evaporation, 1))  # Clamp between 0-1
+        self.evaporation = max(0, min(evaporation, 1))
         self.alpha = alpha
         self.beta = beta
         
-        # Initialize pheromones on all walkable tiles
         self.pheromones = {(r, c): 1.0 for r in range(self.rows) 
                            for c in range(self.cols) if grid[r][c] == 0}
 
@@ -52,7 +51,7 @@ class AntColonyOptimizer:
         return 1.0 / (dist + 1.0)
 
     def is_path_exists(self):
-        """Check if a valid path exists using BFS (before running ACO)."""
+        """Check if a valid path exists using BFS."""
         if not self.is_valid_position(self.start) or not self.is_valid_position(self.goal):
             return False
         
@@ -73,9 +72,8 @@ class AntColonyOptimizer:
 
     def run(self):
         """Run the ACO algorithm and return the best path found."""
-        # Check if path exists before running ACO
         if not self.is_path_exists():
-            print("❌ Error: No valid path exists from start to goal!")
+            print("ERROR: No valid path exists from start to goal!")
             return None
         
         best_path = None
@@ -95,7 +93,7 @@ class AntColonyOptimizer:
             
             if i % 10 == 0:
                 status = f"{min_cost} steps" if min_cost != float('inf') else "not found"
-                print(f"  Iteration {i}: Shortest path = {status}")
+                print(f"Iteration {i}: Shortest path = {status}")
 
         return best_path
 
@@ -104,35 +102,28 @@ class AntColonyOptimizer:
         current = self.start
         path = [current]
         visited = {current}
-        max_steps = self.rows * self.cols * 2  # Increased limit for larger grids
+        max_steps = self.rows * self.cols * 2
 
         for step in range(max_steps):
-            # Check if goal reached
             if current == self.goal:
                 return path
             
-            # Get unvisited neighbors
             neighbors = [n for n in self.get_neighbors(current) if n not in visited]
             
-            # If no unvisited neighbors, backtrack is not allowed (return partial path)
             if not neighbors:
                 break
 
-            # Calculate probabilities for each neighbor
             probs = []
             for n in neighbors:
-                # Use .get() to safely access pheromones
                 tau = self.pheromones.get(n, 1.0) ** self.alpha
                 eta = self.heuristic(n) ** self.beta
                 probs.append(tau * eta)
 
             total = sum(probs)
             if total == 0:
-                # Fallback: choose randomly if all probabilities are 0
                 next_node = neighbors[0]
             else:
                 probs = [p / total for p in probs]
-                # Choose next node based on probability
                 next_node = random.choices(neighbors, weights=probs)[0]
             
             path.append(next_node)
@@ -143,24 +134,19 @@ class AntColonyOptimizer:
 
     def update_pheromones(self, paths):
         """Update pheromone levels based on successful paths."""
-        # 1. Evaporate pheromones
         for node in self.pheromones:
             self.pheromones[node] *= (1 - self.evaporation)
         
-        # 2. Deposit new pheromones (inversely proportional to path length)
         for path in paths:
-            if path:  # Ensure path is not empty
+            if path:
                 deposit = 1.0 / len(path)
                 for node in path:
                     if node in self.pheromones:
                         self.pheromones[node] += deposit
 
-# --- Main Execution ---
-
 def main():
     """Main function to run the ACO algorithm with user input.""" 
     
-    # Define the grid
     grid = [
         [0, 0, 0, 0, 0],
         [0, 1, 1, 1, 0],
@@ -170,90 +156,83 @@ def main():
     ]
 
     print("=" * 50)
-    print("  Ant Colony Optimization - Pathfinding")
+    print("Ant Colony Optimization - Pathfinding")
     print("=" * 50)
-    print("\n--- Map Layout ---")
-    print("(0=walkable, 1=wall/obstacle)")
+    print("\nMap Layout (0=walkable, 1=wall):")
     for idx, row in enumerate(grid):
         print(f"Row {idx}: {row}")
 
     try:
-        # Get user input with validation
-        print("\nEnter coordinates in format: row,col")
-        print(f"Valid range: 0-{len(grid)-1} for row, 0-{len(grid[0])-1} for column")
+        print(f"\nValid coordinates: 0-{len(grid)-1} rows, 0-{len(grid[0])-1} columns")
         
         while True:
             start_input = input("\nStart Point (row,col): ").strip()
             if not start_input:
-                print("Input cannot be empty. Please try again.")
+                print("Input cannot be empty. Try again.")
                 continue
             try:
                 start_in = [int(x.strip()) for x in start_input.split(",")]
                 if len(start_in) != 2:
-                    raise ValueError("Please enter exactly 2 coordinates")
+                    raise ValueError("Enter exactly 2 coordinates")
                 start_node = tuple(start_in)
                 break
             except ValueError as e:
-                print(f"Invalid input: {e}. Use format: row,col (e.g., 0,0)")
+                print(f"Invalid: {e}. Format: row,col (e.g., 0,0)")
         
         while True:
             goal_input = input("Goal Point (row,col): ").strip()
             if not goal_input:
-                print("Input cannot be empty. Please try again.")
+                print("Input cannot be empty. Try again.")
                 continue
             try:
                 goal_in = [int(x.strip()) for x in goal_input.split(",")]
                 if len(goal_in) != 2:
-                    raise ValueError("Please enter exactly 2 coordinates")
+                    raise ValueError("Enter exactly 2 coordinates")
                 goal_node = tuple(goal_in)
                 break
             except ValueError as e:
-                print(f"Invalid input: {e}. Use format: row,col (e.g., 4,4)")
+                print(f"Invalid: {e}. Format: row,col (e.g., 4,4)")
 
-        # Validate coordinates are within grid
         if not (0 <= start_node[0] < len(grid) and 0 <= start_node[1] < len(grid[0])):
-            print(f"❌ Error: Start point {start_node} is out of grid bounds!")
+            print(f"ERROR: Start {start_node} is out of bounds!")
             return
         
         if not (0 <= goal_node[0] < len(grid) and 0 <= goal_node[1] < len(grid[0])):
-            print(f"❌ Error: Goal point {goal_node} is out of grid bounds!")
+            print(f"ERROR: Goal {goal_node} is out of bounds!")
             return
 
-        # Check if start/goal are on walls
         if grid[start_node[0]][start_node[1]] == 1:
-            print(f"❌ Error: Start point {start_node} is on a wall!")
+            print(f"ERROR: Start {start_node} is on a wall!")
             return
         
         if grid[goal_node[0]][goal_node[1]] == 1:
-            print(f"❌ Error: Goal point {goal_node} is on a wall!")
+            print(f"ERROR: Goal {goal_node} is on a wall!")
             return
 
         if start_node == goal_node:
-            print(f"✓ Start and goal are the same: {start_node}")
+            print(f"Start and goal are the same: {start_node}")
             return
 
-        print(f"\n✓ Start: {start_node}")
-        print(f"✓ Goal: {goal_node}")
-        print("\n🐜 Ants are exploring the maze...\n")
+        print(f"\nStart: {start_node}")
+        print(f"Goal: {goal_node}")
+        print("\nAnts are exploring...\n")
 
-        # Run ACO
         aco = AntColonyOptimizer(grid, start_node, goal_node, num_ants=20, iterations=100)
         final_path = aco.run()
 
         print("\n" + "=" * 50)
         if final_path:
-            print(f"✅ Optimal Path Found!")
-            print(f"   Length: {len(final_path)} steps")
-            print(f"   Path: {' → '.join([str(p) for p in final_path])}")
+            print(f"SUCCESS: Optimal Path Found!")
+            print(f"Length: {len(final_path)} steps")
+            print(f"Path: {' -> '.join([str(p) for p in final_path])}")
         else:
-            print(f"❌ No path found by the colony.")
-            print("   The goal may be unreachable or too isolated.")
+            print(f"FAILED: No path found by the colony.")
         print("=" * 50)
 
     except KeyboardInterrupt:
-        print("\n\n⚠️  Program interrupted by user.")
+        print("\n\nProgram interrupted by user.")
     except Exception as e:
-        print(f"\n❌ Unexpected error: {type(e).__name__}: {e}")
+        print(f"\nERROR: {type(e).__name__}: {e}")
 
 if __name__ == "__main__":
     main()
