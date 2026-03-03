@@ -39,10 +39,10 @@ def fringe_search(start, goal, heuristic, neighbors_func):
                 
                 if neighbor not in visited or new_g < visited[neighbor][0]:
                     visited[neighbor] = (new_g, current)
-                    now.appendleft((new_f, new_g, neighbor))
+                    now.append((new_f, new_g, neighbor))
 
         if not later:
-            break
+            break;
             
         threshold = min_f_exceeded
         now = later
@@ -63,7 +63,6 @@ def get_grid_neighbors(node, grid):
             yield (nx, ny), 1
 
 # --- Execution ---
-
 grid = [
     [0, 1, 0, 0, 0],
     [0, 1, 0, 1, 0],
