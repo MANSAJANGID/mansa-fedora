@@ -1,0 +1,127 @@
+import random
+
+class AntColonyOptimizer:
+    def __init__(self, grid, start, goal, num_ants=10, iterations=50, evaporation=0.5, alpha=1.0, beta=2.0):
+        self.grid = grid
+        self.rows = len(grid)
+        self.cols = len(grid[0])
+        self.start = start
+        self.goal = goal
+        self.num_ants = num_ants
+        self.iterations = iterations
+        self.evaporation = evaporation  # Rate at which pheromone disappears
+        self.alpha = alpha  # Importance of pheromone
+        self.beta = beta    # Importance of heuristic (distance)
+        
+        # Initialize pheromones on all walkable tiles
+        self.pheromones = {(r, c): 1.0 for r in range(self.rows) 
+                           for c in range(self.cols) if grid[r][c] == 0}
+
+    def get_neighbors(self, node):
+        r, c = node
+        neighbors = []
+        for dr, dc in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+            nr, nc = r + dr, c + dc
+            if 0 <= nr < self.rows and 0 <= nc < self.cols and self.grid[nr][nc] == 0:
+                neighbors.append((nr, nc))
+        return neighbors
+
+    def heuristic(self, node):
+        # Inverse distance to goal (higher is better)
+        dist = abs(node[0] - self.goal[0]) + abs(node[1] - self.goal[1])
+        return 1.0 / (dist + 1.0)
+
+    def run(self):
+        best_path = None
+        min_cost = float('inf')
+
+        for i in range(self.iterations):
+            paths = []
+            for _ in range(self.num_ants):
+                path = self.simulate_ant()
+                if path[-1] == self.goal:
+                    paths.append(path)
+                    if len(path) < min_cost:
+                        min_cost = len(path)
+                        best_path = path
+
+            self.update_pheromones(paths)
+            if i % 10 == 0:
+                print(f"Iteration {i}: Shortest path found so far = {min_cost} steps")
+
+        return best_path
+
+    def simulate_ant(self):
+        current = self.start
+        path = [current]
+        visited = {current}
+
+        for _ in range(self.rows * self.cols): # Limit steps to prevent infinite loops
+            neighbors = [n for n in self.get_neighbors(current) if n not in visited]
+            if not neighbors or current == self.goal:
+                break
+
+            # Calculate probabilities for each neighbor
+            probs = []
+            for n in neighbors:
+                tau = self.pheromones[n] ** self.alpha
+                eta = self.heuristic(n) ** self.beta
+                probs.append(tau * eta)
+
+            total = sum(probs)
+            probs = [p / total for p in probs]
+
+            # Choose next node based on probability
+            next_node = random.choices(neighbors, weights=probs)[0]
+            path.append(next_node)
+            visited.add(next_node)
+            current = next_node
+
+        return path
+
+    def update_pheromones(self, paths):
+        # 1. Evaporation
+        for node in self.pheromones:
+            self.pheromones[node] *= (1 - self.evaporation)
+        
+        # 2. Deposit new pheromones
+        for path in paths:
+            deposit = 1.0 / len(path)
+            for node in path:
+                self.pheromones[node] += deposit
+
+# --- Main Execution ---
+
+grid = [
+    [0, 0, 0, 0, 0],
+    [0, 1, 1, 1, 0],
+    [0, 0, 0, 1, 0],
+    [0, 1, 0, 0, 0],
+    [0, 0, 0, 0, 0]
+]
+
+print("--- Map Layout ---")
+for r in grid: print(r)
+
+try:
+    print("\nEnter coordinates (e.g., 0,0)")
+    start_in = input("Start Point (row,col): ").split(',')
+    goal_in = input("Goal Point (row,col): ").split(',')
+    
+    start_node = (int(start_in[0]), int(start_in[1]))
+    goal_node = (int(goal_in[0]), int(goal_in[1]))
+
+    if grid[start_node[0]][start_node[1]] == 1 or grid[goal_node[0]][goal_node[1]] == 1:
+        print("Error: Points cannot be on walls (1).")
+    else:
+        print("\nAnts are exploring...")
+        aco = AntColonyOptimizer(grid, start_node, goal_node)
+        final_path = aco.run()
+
+        if final_path:
+            print(f"\nOptimal Path Found: {final_path}")
+        else:
+            print("\nNo path found by the colony.")
+
+except (ValueError, IndexError):
+    print("Invalid input. Use row,col format.")
