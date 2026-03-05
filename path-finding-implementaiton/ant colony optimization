@@ -1,0 +1,238 @@
+import random
+from collections import deque
+
+class AntColonyOptimizer:
+    def __init__(self, grid, start, goal, num_ants=10, iterations=50, evaporation=0.5, alpha=1.0, beta=2.0):
+        """
+        Initialize the Ant Colony Optimizer.
+        
+        Args:
+            grid: 2D list where 0=walkable, 1=wall
+            start: Tuple (row, col) for start position
+            goal: Tuple (row, col) for goal position
+            num_ants: Number of ants per iteration
+            iterations: Number of iterations to run
+            evaporation: Pheromone evaporation rate (0-1)
+            alpha: Weight of pheromone importance
+            beta: Weight of heuristic importance
+        """
+        self.grid = grid
+        self.rows = len(grid)
+        self.cols = len(grid[0]) if grid else 0
+        self.start = start
+        self.goal = goal
+        self.num_ants = num_ants
+        self.iterations = iterations
+        self.evaporation = max(0, min(evaporation, 1))
+        self.alpha = alpha
+        self.beta = beta
+        
+        self.pheromones = {(r, c): 1.0 for r in range(self.rows) 
+                           for c in range(self.cols) if grid[r][c] == 0}
+
+    def is_valid_position(self, pos):
+        """Check if position is within grid and walkable."""
+        r, c = pos
+        return 0 <= r < self.rows and 0 <= c < self.cols and self.grid[r][c] == 0
+
+    def get_neighbors(self, node):
+        """Get valid neighboring cells (up, down, left, right)."""
+        r, c = node
+        neighbors = []
+        for dr, dc in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+            nr, nc = r + dr, c + dc
+            if self.is_valid_position((nr, nc)):
+                neighbors.append((nr, nc))
+        return neighbors
+
+    def heuristic(self, node):
+        """Calculate heuristic value (inverse Manhattan distance to goal)."""
+        dist = abs(node[0] - self.goal[0]) + abs(node[1] - self.goal[1])
+        return 1.0 / (dist + 1.0)
+
+    def is_path_exists(self):
+        """Check if a valid path exists using BFS."""
+        if not self.is_valid_position(self.start) or not self.is_valid_position(self.goal):
+            return False
+        
+        queue = deque([self.start])
+        visited = {self.start}
+        
+        while queue:
+            current = queue.popleft()
+            if current == self.goal:
+                return True
+            
+            for neighbor in self.get_neighbors(current):
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append(neighbor)
+        
+        return False
+
+    def run(self):
+        """Run the ACO algorithm and return the best path found."""
+        if not self.is_path_exists():
+            print("ERROR: No valid path exists from start to goal!")
+            return None
+        
+        best_path = None
+        min_cost = float('inf')
+
+        for i in range(self.iterations):
+            paths = []
+            for _ in range(self.num_ants):
+                path = self.simulate_ant()
+                if path and path[-1] == self.goal:
+                    paths.append(path)
+                    if len(path) < min_cost:
+                        min_cost = len(path)
+                        best_path = path
+
+            self.update_pheromones(paths)
+            
+            if i % 10 == 0:
+                status = f"{min_cost} steps" if min_cost != float('inf') else "not found"
+                print(f"Iteration {i}: Shortest path = {status}")
+
+        return best_path
+
+    def simulate_ant(self):
+        """Simulate one ant's journey through the grid."""
+        current = self.start
+        path = [current]
+        visited = {current}
+        max_steps = self.rows * self.cols * 2
+
+        for step in range(max_steps):
+            if current == self.goal:
+                return path
+            
+            neighbors = [n for n in self.get_neighbors(current) if n not in visited]
+            
+            if not neighbors:
+                break
+
+            probs = []
+            for n in neighbors:
+                tau = self.pheromones.get(n, 1.0) ** self.alpha
+                eta = self.heuristic(n) ** self.beta
+                probs.append(tau * eta)
+
+            total = sum(probs)
+            if total == 0:
+                next_node = neighbors[0]
+            else:
+                probs = [p / total for p in probs]
+                next_node = random.choices(neighbors, weights=probs)[0]
+            
+            path.append(next_node)
+            visited.add(next_node)
+            current = next_node
+
+        return path
+
+    def update_pheromones(self, paths):
+        """Update pheromone levels based on successful paths."""
+        for node in self.pheromones:
+            self.pheromones[node] *= (1 - self.evaporation)
+        
+        for path in paths:
+            if path:
+                deposit = 1.0 / len(path)
+                for node in path:
+                    if node in self.pheromones:
+                        self.pheromones[node] += deposit
+
+def main():
+    """Main function to run the ACO algorithm with user input.""" 
+    
+    grid = [
+        [0, 0, 0, 0, 0],
+        [0, 1, 1, 1, 0],
+        [0, 0, 0, 1, 0],
+        [0, 1, 0, 0, 0],
+        [0, 0, 0, 0, 0]
+    ]
+
+    print("=" * 50)
+    print("Ant Colony Optimization - Pathfinding")
+    print("=" * 50)
+    print("\nMap Layout (0=walkable, 1=wall):")
+    for idx, row in enumerate(grid):
+        print(f"Row {idx}: {row}")
+
+    try:
+        print(f"\nValid coordinates: 0-{len(grid)-1} rows, 0-{len(grid[0])-1} columns")
+        
+        while True:
+            start_input = input("\nStart Point (row,col): ").strip()
+            if not start_input:
+                print("Input cannot be empty. Try again.")
+                continue
+            try:
+                start_in = [int(x.strip()) for x in start_input.split(",")]
+                if len(start_in) != 2:
+                    raise ValueError("Enter exactly 2 coordinates")
+                start_node = tuple(start_in)
+                break
+            except ValueError as e:
+                print(f"Invalid: {e}. Format: row,col (e.g., 0,0)")
+        
+        while True:
+            goal_input = input("Goal Point (row,col): ").strip()
+            if not goal_input:
+                print("Input cannot be empty. Try again.")
+                continue
+            try:
+                goal_in = [int(x.strip()) for x in goal_input.split(",")]
+                if len(goal_in) != 2:
+                    raise ValueError("Enter exactly 2 coordinates")
+                goal_node = tuple(goal_in)
+                break
+            except ValueError as e:
+                print(f"Invalid: {e}. Format: row,col (e.g., 4,4)")
+
+        if not (0 <= start_node[0] < len(grid) and 0 <= start_node[1] < len(grid[0])):
+            print(f"ERROR: Start {start_node} is out of bounds!")
+            return
+        
+        if not (0 <= goal_node[0] < len(grid) and 0 <= goal_node[1] < len(grid[0])):
+            print(f"ERROR: Goal {goal_node} is out of bounds!")
+            return
+
+        if grid[start_node[0]][start_node[1]] == 1:
+            print(f"ERROR: Start {start_node} is on a wall!")
+            return
+        
+        if grid[goal_node[0]][goal_node[1]] == 1:
+            print(f"ERROR: Goal {goal_node} is on a wall!")
+            return
+
+        if start_node == goal_node:
+            print(f"Start and goal are the same: {start_node}")
+            return
+
+        print(f"\nStart: {start_node}")
+        print(f"Goal: {goal_node}")
+        print("\nAnts are exploring...\n")
+
+        aco = AntColonyOptimizer(grid, start_node, goal_node, num_ants=20, iterations=100)
+        final_path = aco.run()
+
+        print("\n" + "=" * 50)
+        if final_path:
+            print(f"SUCCESS: Optimal Path Found!")
+            print(f"Length: {len(final_path)} steps")
+            print(f"Path: {' -> '.join([str(p) for p in final_path])}")
+        else:
+            print(f"FAILED: No path found by the colony.")
+        print("=" * 50)
+
+    except KeyboardInterrupt:
+        print("\n\nProgram interrupted by user.")
+    except Exception as e:
+        print(f"\nERROR: {type(e).__name__}: {e}")
+
+if __name__ == "__main__":
+    main()
